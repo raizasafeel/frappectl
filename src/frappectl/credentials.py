@@ -14,6 +14,8 @@ OAUTH_EXPIRY_MARGIN = 60.0
 class CredentialProvider(Protocol):
     def auth_headers(self) -> dict[str, str]: ...
 
+    def auth_cookies(self) -> dict[str, str]: ...
+
     def refresh(self) -> bool: ...
 
 
@@ -27,6 +29,9 @@ class ApiKeyProvider:
 
     def auth_headers(self) -> dict[str, str]:
         return dict(self._headers)
+
+    def auth_cookies(self) -> dict[str, str]:
+        return {}
 
     def refresh(self) -> bool:
         return False
@@ -59,6 +64,9 @@ class OAuthProvider:
             if not self._refresh(raise_on_failure=True):
                 raise CredentialRefreshError("Could not refresh the OAuth session.")
         return {"Authorization": f"Bearer {self._credential.access_token}"}
+
+    def auth_cookies(self) -> dict[str, str]:
+        return {}
 
     def refresh(self) -> bool:
         return self._refresh(raise_on_failure=False)
@@ -116,10 +124,15 @@ class SessionProvider:
         self._persist = persist
 
     def auth_headers(self) -> dict[str, str]:
+        return {}
+
+    def auth_cookies(self) -> dict[str, str]:
+        # A cookie, not a header: httpx drops a fixed Cookie header on every
+        # redirect and rebuilds it from the client cookie jar.
         if not self._credential.sid:
             if not self._login(raise_on_failure=True):
                 raise CredentialRefreshError("Could not start a session.")
-        return {"Cookie": f"sid={self._credential.sid}"}
+        return {"sid": self._credential.sid}
 
     def refresh(self) -> bool:
         return self._login(raise_on_failure=False)

@@ -80,7 +80,7 @@ def test_session_provider_uses_cached_sid_without_logging_in():
         fail_login,
         lambda c: None,
     )
-    assert provider.auth_headers() == {"Cookie": "sid=CACHED"}
+    assert provider.auth_cookies() == {"sid": "CACHED"}
 
 
 def test_session_provider_logs_in_when_no_sid_and_persists():
@@ -91,7 +91,7 @@ def test_session_provider_logs_in_when_no_sid_and_persists():
         lambda site, user, pwd: "FRESH",
         persisted.append,
     )
-    assert provider.auth_headers() == {"Cookie": "sid=FRESH"}
+    assert provider.auth_cookies() == {"sid": "FRESH"}
     assert persisted == [password_credential(sid="FRESH")]
 
 
@@ -104,7 +104,7 @@ def test_session_provider_refresh_relogins_and_persists():
         persisted.append,
     )
     assert provider.refresh() is True
-    assert provider.auth_headers() == {"Cookie": "sid=RENEWED"}
+    assert provider.auth_cookies() == {"sid": "RENEWED"}
     assert persisted == [password_credential(sid="RENEWED")]
 
 
@@ -132,7 +132,7 @@ def test_session_provider_initial_login_failure_hides_password():
         lambda c: None,
     )
     with pytest.raises(CredentialRefreshError) as exc:
-        provider.auth_headers()
+        provider.auth_cookies()
     assert "secret" not in str(exc.value)
 
 
@@ -146,4 +146,4 @@ def test_session_provider_keeps_sid_when_persistence_fails():
         lambda site, user, pwd: "FRESH",
         fail_persist,
     )
-    assert provider.auth_headers() == {"Cookie": "sid=FRESH"}
+    assert provider.auth_cookies() == {"sid": "FRESH"}
