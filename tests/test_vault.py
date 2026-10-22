@@ -160,8 +160,22 @@ def test_client_store_pipes_record_through_sudo_on_mac(fake_helper):
     calls = fake_helper(0, platform="darwin")
     vault.store("acme", "https://a", "u", "pw")
     argv, stdin = calls[0]
-    assert argv == ["sudo", "-k", vault.HELPER_PATH, "store", "acme"]
+    assert argv == [
+        "sudo",
+        "-k",
+        "-p",
+        vault.SUDO_PROMPT,
+        vault.HELPER_PATH,
+        "store",
+        "acme",
+    ]
     assert json.loads(stdin) == {"site": "https://a", "username": "u", "password": "pw"}
+
+
+def test_failed_sudo_on_mac_points_at_the_mac_password(fake_helper):
+    fake_helper(1, stderr="", platform="darwin")
+    with pytest.raises(vault.VaultCancelled, match="Mac password"):
+        vault.login("acme")
 
 
 @pytest.mark.parametrize(

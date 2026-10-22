@@ -25,6 +25,9 @@ _SOURCE_DIR = Path(__file__).parent / "vault_helper"
 # sudo: 1 = authentication failed (the helper itself never exits 1).
 _CANCELLED_CODES = {"linux": {126, 127}, "darwin": {1}}
 
+# sudo asks right after the site password prompt; name the account it wants.
+SUDO_PROMPT = "Mac password for %u (unlocks the frappectl vault): "
+
 
 class VaultError(Exception):
     """The vault could not complete the request."""
@@ -82,7 +85,7 @@ def delete(profile: str) -> None:
 
 def _elevate() -> list[str]:
     if sys.platform == "darwin":
-        return ["sudo", "-k"]
+        return ["sudo", "-k", "-p", SUDO_PROMPT]
     return ["pkexec"]
 
 
@@ -101,6 +104,10 @@ def _run(command: str, profile: str, stdin: str = "") -> str:
         return proc.stdout
     message = proc.stderr.strip()
     if proc.returncode in _CANCELLED_CODES.get(sys.platform, set()):
+        if sys.platform == "darwin":
+            raise VaultCancelled(
+                "Touch ID or Mac password check was cancelled or failed."
+            )
         raise VaultCancelled("Fingerprint check was cancelled or failed.")
     if proc.returncode == helper.EXIT_BAD_CREDENTIALS:
         raise VaultBadCredentials(message or "Invalid login credentials.")

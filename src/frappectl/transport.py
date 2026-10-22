@@ -7,6 +7,7 @@ could sit on this class without touching the CLI.
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 from collections.abc import Callable
 from typing import Any, cast
@@ -47,6 +48,9 @@ class _LegacyBearerProvider:
 
     def auth_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token}"}
+
+    def auth_cookies(self) -> dict[str, str]:
+        return {}
 
     def refresh(self) -> bool:
         if self._on_unauthorized is None:
@@ -111,6 +115,38 @@ class FrappeTransport:
                 else {}
             ),
         )
+        self._set_auth_cookies()
+
+    def _set_auth_cookies(self) -> None:
+        """Put the provider's cookies in the client jar, scoped to this site.
+
+        Host-only and, on https, secure: the jar then sends them on same-site
+        redirects but never to another host or over plain HTTP.
+        """
+        url = httpx.URL(self.site)
+        # The jar matches a dotless host (localhost) as "<host>.local".
+        domain = url.host if "." in url.host else f"{url.host}.local"
+        for name, value in self._credential_provider.auth_cookies().items():
+            self._http.cookies.jar.set_cookie(
+                http.cookiejar.Cookie(
+                    version=0,
+                    name=name,
+                    value=value,
+                    port=None,
+                    port_specified=False,
+                    domain=domain,
+                    domain_specified=False,
+                    domain_initial_dot=False,
+                    path="/",
+                    path_specified=True,
+                    secure=url.scheme == "https",
+                    expires=None,
+                    discard=True,
+                    comment=None,
+                    comment_url=None,
+                    rest={},
+                )
+            )
 
     def close(self) -> None:
         self._http.close()
@@ -217,6 +253,7 @@ class FrappeTransport:
         if not self._credential_provider.refresh():
             return False
         self._http.headers.update(self._credential_provider.auth_headers())
+        self._set_auth_cookies()
         return True
 
     def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
